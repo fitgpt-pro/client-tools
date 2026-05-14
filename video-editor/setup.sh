@@ -117,17 +117,20 @@ else
   ADMIN_TOKEN=$(openssl rand -hex 32)
   METRICS_TOKEN=$(openssl rand -hex 32)
 
-  # Prompt for OPENAI_API_KEY. /dev/tty so piped curl|bash still works.
-  if [[ -t 0 ]]; then
-    INPUT_TTY=/dev/stdin
-  elif [[ -r /dev/tty ]]; then
-    INPUT_TTY=/dev/tty
-  else
-    die "No interactive TTY available to prompt for OPENAI_API_KEY. Run the script directly: bash setup.sh"
-  fi
+  # OPENAI_API_KEY can be supplied via env var (e.g. for automated / piped installs).
+  # Otherwise prompt interactively through /dev/tty so piped `curl | bash` still works.
+  if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+    if [[ -t 0 ]]; then
+      INPUT_TTY=/dev/stdin
+    elif [[ -r /dev/tty ]]; then
+      INPUT_TTY=/dev/tty
+    else
+      die "OPENAI_API_KEY is not set and no interactive TTY is available. Either: (a) export OPENAI_API_KEY=... before piping into bash, or (b) run the script directly: bash setup.sh"
+    fi
 
-  printf '%b' "${C_BOLD}Enter OPENAI_API_KEY: ${C_RESET}" > /dev/tty
-  read -r OPENAI_API_KEY < "$INPUT_TTY"
+    printf '%b' "${C_BOLD}Enter OPENAI_API_KEY: ${C_RESET}" > /dev/tty
+    read -r OPENAI_API_KEY < "$INPUT_TTY"
+  fi
   [[ -n "$OPENAI_API_KEY" ]] || die "OPENAI_API_KEY is required."
 
   cp .env.example .env
