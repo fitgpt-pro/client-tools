@@ -2,12 +2,15 @@
 # Idempotent setup script for self-hosted n8n on a fresh Linux server.
 #
 # Usage:
-#   # Plain HTTP (asks about the domain interactively, Enter to skip):
+#   # Plain HTTP, Postgres backend (asks about the domain interactively, Enter to skip):
 #   curl -fsSL https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n/setup.sh | sudo bash
 #
 #   # HTTPS via Caddy + Let's Encrypt:
 #   curl -fsSL https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n/setup.sh | \
 #     sudo bash -s -- --domain n8n.example.com --email admin@example.com
+#
+#   # SQLite backend (saves ~300 MB RAM — recommended on hosts shared with another service):
+#   curl -fsSL https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n/setup.sh | sudo bash -s -- --sqlite
 #
 #   # Custom plain-HTTP port:
 #   curl -fsSL https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n/setup.sh | \
@@ -17,19 +20,25 @@
 #   1. Ensures Docker is installed
 #   2. Ensures at least 1 GB of swap is configured (creates 2 GB /swapfile if missing)
 #   3. Picks a port (--port, or first free starting at 5678) — skipped when --domain is set
-#   4. Downloads docker-compose.yml, .env.example, init-data.sh, Caddyfile into /opt/n8n
-#   5. Generates N8N_ENCRYPTION_KEY + Postgres passwords (first run only)
+#   4. Downloads docker-compose(.sqlite).yml, .env(.sqlite).example, init-data.sh (Postgres only), Caddyfile into /opt/n8n
+#   5. Generates N8N_ENCRYPTION_KEY (+ Postgres passwords in Postgres mode) — first run only
 #   6. Computes N8N_HOST / N8N_PROTOCOL / WEBHOOK_URL / COMPOSE_PROFILES based on --domain
-#   7. Pulls images and starts containers (n8n + postgres, plus caddy when --domain is set)
+#   7. Pulls images and starts containers (n8n + postgres unless --sqlite, plus caddy when --domain is set)
 #   8. Waits for /healthz to respond
 #   9. Prints the URL — open in a browser to create the owner account
+#
+# DB mode is locked at first run. Re-running setup.sh with a different --sqlite state than
+# the existing /opt/n8n/.env will abort — to migrate, export workflows from the n8n UI,
+# `docker compose down -v` in /opt/n8n, then re-run setup.sh in the new mode.
 
 set -euo pipefail
 
 readonly RAW_BASE="https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n"
 readonly INSTALL_DIR="/opt/n8n"
-readonly COMPOSE_URL="${RAW_BASE}/docker-compose.yml"
-readonly ENV_EXAMPLE_URL="${RAW_BASE}/.env.example"
+readonly COMPOSE_PG_URL="${RAW_BASE}/docker-compose.yml"
+readonly COMPOSE_SQLITE_URL="${RAW_BASE}/docker-compose.sqlite.yml"
+readonly ENV_PG_URL="${RAW_BASE}/.env.example"
+readonly ENV_SQLITE_URL="${RAW_BASE}/.env.sqlite.example"
 readonly INIT_DATA_URL="${RAW_BASE}/init-data.sh"
 readonly CADDYFILE_URL="${RAW_BASE}/Caddyfile"
 
@@ -57,6 +66,7 @@ die()  { printf '%b!! %s%b\n' "$C_RED" "$*" "$C_RESET" >&2; exit 1; }
 DOMAIN_ARG=""
 EMAIL_ARG=""
 PORT_ARG=""
+SQLITE_ARG=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -75,8 +85,12 @@ while [[ $# -gt 0 ]]; do
       [[ "$PORT_ARG" =~ ^[0-9]+$ ]] || die "--port requires a numeric value"
       shift 2
       ;;
+    --sqlite)
+      SQLITE_ARG=1
+      shift
+      ;;
     -h|--help)
-      sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -123,16 +137,46 @@ else
   log "Swap already configured ($((SWAP_KB / 1024)) MB)."
 fi
 
-# --- 4. Prepare install dir + download files ---
+# --- 4. Prepare install dir + resolve DB mode ---
 
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
-log "Downloading deployment files..."
-curl -fsSL "$COMPOSE_URL"    -o docker-compose.yml
-curl -fsSL "$INIT_DATA_URL"  -o init-data.sh
-curl -fsSL "$CADDYFILE_URL"  -o Caddyfile
-chmod +x init-data.sh
+# Detect prior DB mode from existing .env so reruns stay consistent and we can refuse
+# accidental cross-mode reruns (which would silently lose data).
+EXISTING_MODE=""
+if [[ -f .env ]]; then
+  if grep -q '^N8N_DB_MODE=sqlite' .env 2>/dev/null; then
+    EXISTING_MODE="sqlite"
+  elif grep -q '^POSTGRES_PASSWORD=' .env 2>/dev/null; then
+    EXISTING_MODE="postgres"
+  fi
+fi
+
+if [[ "$SQLITE_ARG" -eq 1 ]]; then
+  DB_MODE="sqlite"
+else
+  DB_MODE="${EXISTING_MODE:-postgres}"
+fi
+
+if [[ -n "$EXISTING_MODE" && "$EXISTING_MODE" != "$DB_MODE" ]]; then
+  die "Existing install in $INSTALL_DIR uses DB mode '$EXISTING_MODE' but you requested '$DB_MODE'.
+       Mid-life DB switches are not supported automatically. To migrate:
+         1. Export workflows from the n8n UI (Workflows -> menu -> Download).
+         2. cd $INSTALL_DIR && docker compose down -v   (this DELETES the volumes!)
+         3. Re-run setup.sh in the new mode."
+fi
+
+log "Downloading deployment files (mode: $DB_MODE)..."
+if [[ "$DB_MODE" == "sqlite" ]]; then
+  curl -fsSL "$COMPOSE_SQLITE_URL" -o docker-compose.yml
+  rm -f init-data.sh
+else
+  curl -fsSL "$COMPOSE_PG_URL"  -o docker-compose.yml
+  curl -fsSL "$INIT_DATA_URL"   -o init-data.sh
+  chmod +x init-data.sh
+fi
+curl -fsSL "$CADDYFILE_URL" -o Caddyfile
 
 # --- 5. Pick free port (plain-HTTP mode only) ---
 
@@ -152,13 +196,17 @@ find_free_port() {
 # between plain HTTP and HTTPS (Caddy) without losing the encryption key.
 #
 #   Secrets (generated once, preserved on reruns):
-#     N8N_ENCRYPTION_KEY, POSTGRES_PASSWORD, POSTGRES_NON_ROOT_PASSWORD
+#     N8N_ENCRYPTION_KEY, POSTGRES_PASSWORD, POSTGRES_NON_ROOT_PASSWORD (Postgres mode only)
 #
 #   Mode-dependent settings (recomputed every run from CLI flags or .env):
 #     DOMAIN, ACME_EMAIL, N8N_HOST, N8N_PROTOCOL, WEBHOOK_URL, N8N_SECURE_COOKIE,
 #     N8N_PORT, N8N_PORT_BINDING, COMPOSE_PROFILES
 
-curl -fsSL "$ENV_EXAMPLE_URL" -o .env.example
+if [[ "$DB_MODE" == "sqlite" ]]; then
+  curl -fsSL "$ENV_SQLITE_URL" -o .env.example
+else
+  curl -fsSL "$ENV_PG_URL"     -o .env.example
+fi
 
 if [[ ! -f .env ]]; then
   log "First run — creating .env from template..."
@@ -177,9 +225,15 @@ set +a
 
 # --- 7. Generate any missing secrets (preserve existing ones) ---
 
-[[ -n "${N8N_ENCRYPTION_KEY:-}" ]]        || N8N_ENCRYPTION_KEY=$(openssl rand -hex 32)
-[[ -n "${POSTGRES_PASSWORD:-}" ]]         || POSTGRES_PASSWORD=$(openssl rand -hex 32)
-[[ -n "${POSTGRES_NON_ROOT_PASSWORD:-}" ]] || POSTGRES_NON_ROOT_PASSWORD=$(openssl rand -hex 32)
+[[ -n "${N8N_ENCRYPTION_KEY:-}" ]] || N8N_ENCRYPTION_KEY=$(openssl rand -hex 32)
+
+if [[ "$DB_MODE" == "postgres" ]]; then
+  [[ -n "${POSTGRES_PASSWORD:-}" ]]          || POSTGRES_PASSWORD=$(openssl rand -hex 32)
+  [[ -n "${POSTGRES_NON_ROOT_PASSWORD:-}" ]] || POSTGRES_NON_ROOT_PASSWORD=$(openssl rand -hex 32)
+else
+  POSTGRES_PASSWORD=""
+  POSTGRES_NON_ROOT_PASSWORD=""
+fi
 
 # --- 8. Resolve mode (HTTPS vs plain HTTP) ---
 #
@@ -287,6 +341,13 @@ COMPOSE_PROFILES="$COMPOSE_PROFILES" \
     s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=$ENV{COMPOSE_PROFILES}/;
   ' .env
 
+# Persist the DB mode so future reruns can detect it and refuse cross-mode changes.
+if ! grep -q '^N8N_DB_MODE=' .env; then
+  printf '\n# DB mode marker (set by setup.sh, do not edit) ===\nN8N_DB_MODE=%s\n' "$DB_MODE" >> .env
+else
+  DB_MODE_VAL="$DB_MODE" perl -i -pe 's/^N8N_DB_MODE=.*/N8N_DB_MODE=$ENV{DB_MODE_VAL}/' .env
+fi
+
 chmod 600 .env
 
 # Re-load so any downstream commands see the final values.
@@ -333,21 +394,31 @@ else
   PUBLIC_URL="http://${DISPLAY_IP}:${N8N_PORT}"
 fi
 
+if [[ "$DB_MODE" == "sqlite" ]]; then
+  DB_DESC="SQLite (volume: n8n_storage, path: /home/node/.n8n/database.sqlite)"
+  BACKUP_CMD="cd ${INSTALL_DIR} && docker compose exec -T n8n tar czf - -C /home/node/.n8n database.sqlite > n8n-backup-\$(date +%F).tar.gz"
+  BACKUP_LABEL="Backup SQLite"
+else
+  DB_DESC="Postgres (in-cluster, volume: db_storage)"
+  BACKUP_CMD="cd ${INSTALL_DIR} && docker compose exec -T postgres pg_dump -U n8n n8n | gzip > n8n-backup-\$(date +%F).sql.gz"
+  BACKUP_LABEL="Backup Postgres"
+fi
+
 cat <<EOF
 
 ${C_BOLD}${C_GREEN}=== n8n is up ===${C_RESET}
 
   URL:           ${PUBLIC_URL}
   Install dir:   ${INSTALL_DIR}
-  Database:      Postgres (in-cluster, volume: db_storage)
+  Database:      ${DB_DESC}
 
 ${C_BOLD}First-run steps:${C_RESET}
   1. Open the URL in a browser
   2. Create the owner account (email + password)
   3. n8n redirects to the workflows dashboard
 
-${C_BOLD}Backup Postgres:${C_RESET}
-  cd ${INSTALL_DIR} && docker compose exec -T postgres pg_dump -U n8n n8n | gzip > n8n-backup-\$(date +%F).sql.gz
+${C_BOLD}${BACKUP_LABEL}:${C_RESET}
+  ${BACKUP_CMD}
 
 ${C_BOLD}Logs:${C_RESET}        cd ${INSTALL_DIR} && docker compose logs -f
 ${C_BOLD}Restart:${C_RESET}     cd ${INSTALL_DIR} && docker compose restart
