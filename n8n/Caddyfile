@@ -1,0 +1,13 @@
+# Caddyfile for n8n behind Caddy with Let's Encrypt.
+# Variables are expanded from environment (passed via docker-compose).
+#
+# flush_interval -1 disables proxy response buffering — required for SSE streams
+# used by the n8n workflow editor (Code-node logs, execution updates).
+
+{$DOMAIN} {
+    tls {$ACME_EMAIL}
+
+    reverse_proxy n8n:5678 {
+        flush_interval -1
+    }
+}
