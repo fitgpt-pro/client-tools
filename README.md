@@ -4,6 +4,34 @@ Public deployment files and setup scripts for self-hostable [fitgpt-pro](https:/
 
 The source code of the services lives in private repositories; the Docker images are public on GitHub Container Registry. This repo holds everything operators (and external clients) need to run them.
 
+## Reference deployment target
+
+The defaults in this repo are sized for the FitGPT Pro reference VPS, where `video-editor` and `n8n` run side-by-side on a single host.
+
+| Param | Value |
+|---|---|
+| Provider | Timeweb VPS |
+| OS | Ubuntu 24.04 LTS |
+| Kernel | 6.8.0 x86_64 |
+| CPU | 2 vCPU (AMD EPYC) |
+| RAM | 1.9 GB |
+| Swap | 2 GB |
+| Disk | 38 GB |
+| Docker | 29.x + Compose v5.x |
+
+**Resource budget when both services share this host:**
+
+| Service | `cpus` | `mem_limit` | `memswap_limit` | DB |
+|---|---|---|---|---|
+| `video-editor` | 1.5 | 800m | 2g | — |
+| `n8n` | 1.0 | 700m | 1500m | SQLite (`setup.sh --sqlite`) |
+| OS + Docker daemon | — | ≈ 400m | — | — |
+| **Total RAM** | — | **≈ 1.9 GB** | — | — |
+
+CPU is soft-oversubscribed (1.5 + 1.0 > 2 cores) — idle cores from one service get reused by the other; under simultaneous peak both throttle but neither dies.
+
+Larger hosts (≥ 4 vCPU / 4 GB RAM) can keep the upstream `.env.example` defaults and use n8n's Postgres backend (omit `--sqlite`) for higher concurrent-workflow throughput.
+
 ## Services
 
 ### video-editor
@@ -32,6 +60,16 @@ The script will:
 
 Files end up in `/opt/video-editor/`. Re-running the script is safe — it skips secret regeneration if `.env` exists.
 
+**Shared host?** On the reference 2 GB / 2 vCPU VPS shared with `n8n`, lower the defaults in `/opt/video-editor/.env` after first run:
+
+```env
+CPUS_LIMIT=1.5
+MEM_LIMIT=800m
+MEMSWAP_LIMIT=2g
+```
+
+Then `cd /opt/video-editor && docker compose up -d`. Trade-off: heavy social-video jobs will swap-thrash if `n8n` is busy at the same moment.
+
 #### Manual deployment
 
 If you prefer to set things up by hand:
@@ -48,15 +86,19 @@ For configuration reference (env vars, performance tiers, etc.) see the main rep
 
 ### n8n
 
-Self-hosted [n8n](https://n8n.io) workflow automation with PostgreSQL backend and optional Caddy reverse proxy for automatic HTTPS via Let's Encrypt.
+Self-hosted [n8n](https://n8n.io) workflow automation with PostgreSQL (default) or SQLite backend, plus optional Caddy reverse proxy for automatic HTTPS via Let's Encrypt.
 
 **Image (public):** `docker.n8n.io/n8nio/n8n:stable`
 
 #### Quick start on a fresh Ubuntu/Debian server
 
-Minimum: 2 vCPU, 2 GB RAM, 10 GB disk.
+| Mode | Minimum host | When to use |
+|---|---|---|
+| **Postgres + Caddy + HTTPS** | 2 vCPU, 4 GB RAM, 10 GB disk | Standalone n8n, many concurrent workflows |
+| **Postgres, plain HTTP** | 2 vCPU, 4 GB RAM, 10 GB disk | Standalone n8n behind another proxy |
+| **SQLite, plain HTTP (`--sqlite`)** | 2 vCPU, 2 GB RAM, 10 GB disk | Shared host (e.g. alongside `video-editor`); low concurrency |
 
-Plain HTTP (no domain — webhooks from the public internet will not work):
+Plain HTTP, Postgres (no domain — webhooks from the public internet will not work):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n/setup.sh | sudo bash
@@ -69,20 +111,30 @@ curl -fsSL https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n/se
   sudo bash -s -- --domain n8n.example.com --email admin@example.com
 ```
 
+**SQLite** mode — saves ≈ 300 MB RAM by skipping Postgres. Recommended on the reference 2 GB shared host:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n/setup.sh | sudo bash -s -- --sqlite
+```
+
+`--sqlite` is compatible with `--domain` (just add both flags). The data lives in a Docker volume (`n8n_storage`) and can be migrated to Postgres later via n8n's CLI export/import.
+
 The script will:
 
 1. Install Docker if missing
 2. Add 2 GB of swap if the server has less than 1 GB
 3. Pick a free port starting at 5678 (plain HTTP) — skipped in HTTPS mode
-4. Pull `n8n` + `postgres` (+ `caddy` when `--domain` is set) and start them
-5. Generate `N8N_ENCRYPTION_KEY` and Postgres passwords
+4. Pull `n8n` (+ `postgres` unless `--sqlite`, + `caddy` when `--domain` is set) and start them
+5. Generate `N8N_ENCRYPTION_KEY` (+ Postgres passwords in Postgres mode)
 6. Wait for `/healthz` and print the URL
 
-Files end up in `/opt/n8n/`. Re-running the script is safe — it skips secret regeneration if `.env` already exists.
+Files end up in `/opt/n8n/`. Re-running the script is safe — it skips secret regeneration if `.env` already exists. Switching DB modes (`--sqlite` ↔ default Postgres) on an existing install is **not** supported: the script will refuse to overwrite the running config. To switch, export workflows from the UI, `docker compose down -v`, then re-run setup in the new mode.
 
 After setup, open the URL in a browser and create the owner account on first login.
 
 #### Manual deployment
+
+Postgres backend:
 
 ```bash
 mkdir -p /opt/n8n && cd /opt/n8n
@@ -92,6 +144,16 @@ curl -fsSL https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n/Ca
 curl -fsSL https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n/.env.example    -o .env
 # Edit .env — set N8N_ENCRYPTION_KEY, POSTGRES_PASSWORD, POSTGRES_NON_ROOT_PASSWORD
 # (generate each with: openssl rand -hex 32). Optional: set DOMAIN + ACME_EMAIL + COMPOSE_PROFILES=proxy for HTTPS.
+docker compose pull && docker compose up -d
+```
+
+SQLite backend:
+
+```bash
+mkdir -p /opt/n8n && cd /opt/n8n
+curl -fsSL https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n/docker-compose.sqlite.yml -o docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n/.env.sqlite.example      -o .env
+# Edit .env — set N8N_ENCRYPTION_KEY (openssl rand -hex 32) and N8N_HOST.
 docker compose pull && docker compose up -d
 ```
 
