@@ -212,7 +212,7 @@ if [[ -n "$FIRST_API_KEY" ]]; then
   First API key: ${FIRST_API_KEY}
 
   Test it:
-    curl -H "Authorization: Bearer ${FIRST_API_KEY}" http://${SERVER_IP}:${PORT}/available-fonts
+    curl -H "Authorization: Bearer ${FIRST_API_KEY}" http://${SERVER_IP}:${PORT}/v1/available-fonts
 EOF
 elif [[ -f .first-api-key.done ]]; then
   cat <<EOF
