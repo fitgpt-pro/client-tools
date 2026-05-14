@@ -1,0 +1,38 @@
+services:
+  video-editor:
+    image: ghcr.io/fitgpt-pro/video-editor:latest
+    container_name: video-editor
+    ports:
+      - "${PORT}:8000"
+    restart: unless-stopped
+    environment:
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+      - METRICS_TOKEN=${METRICS_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DB_PATH=${DB_PATH}
+      - FFMPEG_MAX_CONCURRENT=${FFMPEG_MAX_CONCURRENT}
+      - FFMPEG_THREADS=${FFMPEG_THREADS}
+      - FFMPEG_TIMEOUT=${FFMPEG_TIMEOUT}
+      - JOB_QUEUE_MAX_SIZE=${JOB_QUEUE_MAX_SIZE}
+      - JOB_QUEUE_WORKERS=${JOB_QUEUE_WORKERS}
+      - WEB_CONCURRENCY=${WEB_CONCURRENCY}
+      - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT}
+      - GUNICORN_GRACEFUL_TIMEOUT=${GUNICORN_GRACEFUL_TIMEOUT}
+      - LOG_JSON=${LOG_JSON}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - OPENAI_TRANSCRIPTION_MODEL=${OPENAI_TRANSCRIPTION_MODEL}
+
+    mem_limit: ${MEM_LIMIT}
+    memswap_limit: ${MEMSWAP_LIMIT}
+    mem_reservation: ${MEM_RESERVATION}
+    cpus: ${CPUS_LIMIT}
+
+    volumes:
+      - ./data:/app/data
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
