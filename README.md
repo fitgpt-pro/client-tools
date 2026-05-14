@@ -60,15 +60,7 @@ The script will:
 
 Files end up in `/opt/video-editor/`. Re-running the script is safe — it skips secret regeneration if `.env` exists.
 
-**Shared host?** On the reference 2 GB / 2 vCPU VPS shared with `n8n`, lower the defaults in `/opt/video-editor/.env` after first run:
-
-```env
-CPUS_LIMIT=1.5
-MEM_LIMIT=800m
-MEMSWAP_LIMIT=2g
-```
-
-Then `cd /opt/video-editor && docker compose up -d`. Trade-off: heavy social-video jobs will swap-thrash if `n8n` is busy at the same moment.
+**Default resource limits** are sized for the reference 2 vCPU / 1.9 GB host shared with `n8n` (`CPUS_LIMIT=1.5`, `MEM_LIMIT=800m`, `MEMSWAP_LIMIT=2g`). Under simultaneous peak load with `n8n` both services will swap-thrash — that's the price of sharing the box. **Standalone deployment** (no `n8n` on the same host) — raise the limits in `/opt/video-editor/.env` (see the comments at the bottom of the file) and `docker compose up -d`.
 
 #### Manual deployment
 
