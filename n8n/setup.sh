@@ -146,17 +146,64 @@ find_free_port() {
   return 1
 }
 
-# --- 6. Determine HTTPS vs plain-HTTP mode ---
+# --- 6. Bootstrap/load .env ---
+#
+# Configuration is split into two layers, so reruns can flip an existing install
+# between plain HTTP and HTTPS (Caddy) without losing the encryption key.
+#
+#   Secrets (generated once, preserved on reruns):
+#     N8N_ENCRYPTION_KEY, POSTGRES_PASSWORD, POSTGRES_NON_ROOT_PASSWORD
+#
+#   Mode-dependent settings (recomputed every run from CLI flags or .env):
+#     DOMAIN, ACME_EMAIL, N8N_HOST, N8N_PROTOCOL, WEBHOOK_URL, N8N_SECURE_COOKIE,
+#     N8N_PORT, N8N_PORT_BINDING, COMPOSE_PROFILES
 
-DOMAIN=""
-ACME_EMAIL=""
+curl -fsSL "$ENV_EXAMPLE_URL" -o .env.example
+
+if [[ ! -f .env ]]; then
+  log "First run — creating .env from template..."
+  cp .env.example .env
+  chmod 600 .env
+  FRESH_INSTALL=1
+else
+  log ".env exists — preserving secrets, may update mode-dependent settings."
+  FRESH_INSTALL=0
+fi
+
+set -a
+# shellcheck source=/dev/null
+. ./.env
+set +a
+
+# --- 7. Generate any missing secrets (preserve existing ones) ---
+
+[[ -n "${N8N_ENCRYPTION_KEY:-}" ]]        || N8N_ENCRYPTION_KEY=$(openssl rand -hex 32)
+[[ -n "${POSTGRES_PASSWORD:-}" ]]         || POSTGRES_PASSWORD=$(openssl rand -hex 32)
+[[ -n "${POSTGRES_NON_ROOT_PASSWORD:-}" ]] || POSTGRES_NON_ROOT_PASSWORD=$(openssl rand -hex 32)
+
+# --- 8. Resolve mode (HTTPS vs plain HTTP) ---
+#
+# Precedence:
+#   1. --domain on CLI wins (lets reruns flip plain HTTP → HTTPS)
+#   2. Otherwise reuse DOMAIN from existing .env
+#   3. Otherwise prompt interactively on a fresh install
+
+EXISTING_DOMAIN="${DOMAIN:-}"
 
 if [[ -n "$DOMAIN_ARG" ]]; then
   DOMAIN="$DOMAIN_ARG"
   ACME_EMAIL="$EMAIL_ARG"
   [[ -n "$ACME_EMAIL" ]] || die "--domain requires --email (used for Let's Encrypt registration)"
-elif [[ ! -f .env ]]; then
-  # Interactive prompt only on fresh install.
+  if [[ -n "$EXISTING_DOMAIN" && "$EXISTING_DOMAIN" != "$DOMAIN" ]]; then
+    log "Switching DOMAIN: $EXISTING_DOMAIN -> $DOMAIN"
+  elif [[ -z "$EXISTING_DOMAIN" ]]; then
+    log "Switching from plain HTTP to HTTPS via Caddy (domain: $DOMAIN)"
+  fi
+elif [[ -n "$EXISTING_DOMAIN" ]]; then
+  DOMAIN="$EXISTING_DOMAIN"
+  log "Reusing DOMAIN=$DOMAIN from .env"
+elif [[ "$FRESH_INSTALL" -eq 1 ]]; then
+  # Interactive prompt only on a fresh install with no CLI flag.
   if [[ -t 0 ]]; then
     INPUT_TTY=/dev/stdin
   elif [[ -r /dev/tty ]]; then
@@ -165,6 +212,8 @@ elif [[ ! -f .env ]]; then
     INPUT_TTY=""
   fi
 
+  DOMAIN=""
+  ACME_EMAIL=""
   if [[ -n "$INPUT_TTY" ]]; then
     printf '%b' "${C_BOLD}Do you have a domain pointing to this server? (Enter to skip, or type domain): ${C_RESET}" > /dev/tty
     read -r DOMAIN < "$INPUT_TTY" || DOMAIN=""
@@ -176,72 +225,71 @@ elif [[ ! -f .env ]]; then
   fi
 fi
 
-# --- 7. Generate .env (idempotent — skip if exists) ---
+# --- 9. Compute mode-dependent settings ---
 
-if [[ -f .env ]]; then
-  log ".env already exists — skipping secret generation."
+if [[ -n "${DOMAIN:-}" ]]; then
+  # HTTPS via Caddy: n8n stays on docker network only; bind to loopback so the
+  # host's :5678 is never publicly exposed (Caddy is the single public entrypoint).
+  [[ -n "${ACME_EMAIL:-}" ]] || die "DOMAIN is set but ACME_EMAIL is missing — pass --email or edit .env"
+  N8N_PORT="5678"
+  N8N_PORT_BINDING="127.0.0.1:5678:5678"
+  N8N_HOST="$DOMAIN"
+  N8N_PROTOCOL="https"
+  WEBHOOK_URL="https://${DOMAIN}/"
+  N8N_SECURE_COOKIE="true"
+  COMPOSE_PROFILES="proxy"
 else
-  log "Downloading .env.example template..."
-  curl -fsSL "$ENV_EXAMPLE_URL" -o .env.example
-
-  if [[ -n "$DOMAIN" ]]; then
-    N8N_PORT="5678"  # internal only; Caddy listens on 80/443
-    N8N_HOST="$DOMAIN"
-    N8N_PROTOCOL="https"
-    WEBHOOK_URL="https://${DOMAIN}/"
-    N8N_SECURE_COOKIE="true"
-    COMPOSE_PROFILES="proxy"
-  else
-    if [[ -n "$PORT_ARG" ]]; then
-      N8N_PORT="$PORT_ARG"
-    else
-      N8N_PORT=$(find_free_port) || die "No free port found in 5678-5800 range."
-    fi
-    log "Picked port: $N8N_PORT"
-    SERVER_IP=$(curl -fs https://ifconfig.me 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo 'localhost')
-    N8N_HOST="$SERVER_IP"
-    N8N_PROTOCOL="http"
-    WEBHOOK_URL=""
-    N8N_SECURE_COOKIE="false"
-    COMPOSE_PROFILES=""
+  # Plain HTTP: publish on 0.0.0.0:N8N_PORT.
+  # Priority: --port flag > existing N8N_PORT in .env > first free port from 5678.
+  if [[ -n "$PORT_ARG" ]]; then
+    N8N_PORT="$PORT_ARG"
+  elif [[ -z "${N8N_PORT:-}" ]]; then
+    N8N_PORT=$(find_free_port) || die "No free port found in 5678-5800 range."
+    log "Picked free port: $N8N_PORT"
   fi
-
-  N8N_ENCRYPTION_KEY=$(openssl rand -hex 32)
-  POSTGRES_PASSWORD=$(openssl rand -hex 32)
-  POSTGRES_NON_ROOT_PASSWORD=$(openssl rand -hex 32)
-
-  cp .env.example .env
-  # Use perl to avoid sed quoting headaches with secrets that may contain slashes.
-  N8N_ENCRYPTION_KEY="$N8N_ENCRYPTION_KEY" \
-  POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-  POSTGRES_NON_ROOT_PASSWORD="$POSTGRES_NON_ROOT_PASSWORD" \
-  N8N_PORT="$N8N_PORT" \
-  DOMAIN="$DOMAIN" \
-  ACME_EMAIL="$ACME_EMAIL" \
-  N8N_HOST="$N8N_HOST" \
-  N8N_PROTOCOL="$N8N_PROTOCOL" \
-  WEBHOOK_URL="$WEBHOOK_URL" \
-  N8N_SECURE_COOKIE="$N8N_SECURE_COOKIE" \
-  COMPOSE_PROFILES="$COMPOSE_PROFILES" \
-    perl -i -pe '
-      s/^N8N_ENCRYPTION_KEY=.*/N8N_ENCRYPTION_KEY=$ENV{N8N_ENCRYPTION_KEY}/;
-      s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$ENV{POSTGRES_PASSWORD}/;
-      s/^POSTGRES_NON_ROOT_PASSWORD=.*/POSTGRES_NON_ROOT_PASSWORD=$ENV{POSTGRES_NON_ROOT_PASSWORD}/;
-      s/^N8N_PORT=.*/N8N_PORT=$ENV{N8N_PORT}/;
-      s/^DOMAIN=.*/DOMAIN=$ENV{DOMAIN}/;
-      s/^ACME_EMAIL=.*/ACME_EMAIL=$ENV{ACME_EMAIL}/;
-      s/^N8N_HOST=.*/N8N_HOST=$ENV{N8N_HOST}/;
-      s/^N8N_PROTOCOL=.*/N8N_PROTOCOL=$ENV{N8N_PROTOCOL}/;
-      s|^WEBHOOK_URL=.*|WEBHOOK_URL=$ENV{WEBHOOK_URL}|;
-      s/^N8N_SECURE_COOKIE=.*/N8N_SECURE_COOKIE=$ENV{N8N_SECURE_COOKIE}/;
-      s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=$ENV{COMPOSE_PROFILES}/;
-    ' .env
-
-  chmod 600 .env
-  log "Generated .env with fresh secrets."
+  N8N_PORT_BINDING="${N8N_PORT}:5678"
+  SERVER_IP=$(curl -fs https://ifconfig.me 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo 'localhost')
+  N8N_HOST="$SERVER_IP"
+  N8N_PROTOCOL="http"
+  WEBHOOK_URL=""
+  N8N_SECURE_COOKIE="false"
+  COMPOSE_PROFILES=""
+  ACME_EMAIL="${ACME_EMAIL:-}"
 fi
 
-# Re-read .env so the rest of the script can use the values (works on both fresh and existing installs).
+# --- 10. Write .env (always — applies updated mode-dependent settings) ---
+
+# Use perl to avoid sed quoting headaches with secrets that may contain slashes.
+N8N_ENCRYPTION_KEY="$N8N_ENCRYPTION_KEY" \
+POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+POSTGRES_NON_ROOT_PASSWORD="$POSTGRES_NON_ROOT_PASSWORD" \
+N8N_PORT="$N8N_PORT" \
+N8N_PORT_BINDING="$N8N_PORT_BINDING" \
+DOMAIN="$DOMAIN" \
+ACME_EMAIL="$ACME_EMAIL" \
+N8N_HOST="$N8N_HOST" \
+N8N_PROTOCOL="$N8N_PROTOCOL" \
+WEBHOOK_URL="$WEBHOOK_URL" \
+N8N_SECURE_COOKIE="$N8N_SECURE_COOKIE" \
+COMPOSE_PROFILES="$COMPOSE_PROFILES" \
+  perl -i -pe '
+    s/^N8N_ENCRYPTION_KEY=.*/N8N_ENCRYPTION_KEY=$ENV{N8N_ENCRYPTION_KEY}/;
+    s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$ENV{POSTGRES_PASSWORD}/;
+    s/^POSTGRES_NON_ROOT_PASSWORD=.*/POSTGRES_NON_ROOT_PASSWORD=$ENV{POSTGRES_NON_ROOT_PASSWORD}/;
+    s/^N8N_PORT=.*/N8N_PORT=$ENV{N8N_PORT}/;
+    s/^N8N_PORT_BINDING=.*/N8N_PORT_BINDING=$ENV{N8N_PORT_BINDING}/;
+    s/^DOMAIN=.*/DOMAIN=$ENV{DOMAIN}/;
+    s/^ACME_EMAIL=.*/ACME_EMAIL=$ENV{ACME_EMAIL}/;
+    s/^N8N_HOST=.*/N8N_HOST=$ENV{N8N_HOST}/;
+    s/^N8N_PROTOCOL=.*/N8N_PROTOCOL=$ENV{N8N_PROTOCOL}/;
+    s|^WEBHOOK_URL=.*|WEBHOOK_URL=$ENV{WEBHOOK_URL}|;
+    s/^N8N_SECURE_COOKIE=.*/N8N_SECURE_COOKIE=$ENV{N8N_SECURE_COOKIE}/;
+    s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=$ENV{COMPOSE_PROFILES}/;
+  ' .env
+
+chmod 600 .env
+
+# Re-load so any downstream commands see the final values.
 set -a
 # shellcheck source=/dev/null
 . ./.env

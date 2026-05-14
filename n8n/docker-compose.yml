@@ -44,7 +44,10 @@ services:
       - N8N_DIAGNOSTICS_ENABLED=${N8N_DIAGNOSTICS_ENABLED}
       - N8N_METRICS=${N8N_METRICS}
     ports:
-      - "${N8N_PORT}:5678"
+      # In plain HTTP mode setup.sh sets N8N_PORT_BINDING=<port>:5678 (binds 0.0.0.0).
+      # In HTTPS/Caddy mode it sets 127.0.0.1:5678:5678 — n8n stays on loopback,
+      # Caddy is the only public entrypoint.
+      - "${N8N_PORT_BINDING}"
     volumes:
       - n8n_storage:/home/node/.n8n
     mem_limit: ${N8N_MEM_LIMIT}
