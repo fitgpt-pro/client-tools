@@ -12,6 +12,9 @@
 #   # SQLite backend (saves ~300 MB RAM — recommended on hosts shared with another service):
 #   curl -fsSL https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n/setup.sh | sudo bash -s -- --sqlite
 #
+#   # Explicit plain-HTTP without a domain prompt (useful for non-interactive sessions):
+#   curl -fsSL https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n/setup.sh | sudo bash -s -- --http
+#
 #   # Custom plain-HTTP port:
 #   curl -fsSL https://raw.githubusercontent.com/fitgpt-pro/client-tools/main/n8n/setup.sh | \
 #     sudo bash -s -- --port 5680
@@ -67,6 +70,7 @@ DOMAIN_ARG=""
 EMAIL_ARG=""
 PORT_ARG=""
 SQLITE_ARG=0
+HTTP_ARG=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -89,8 +93,12 @@ while [[ $# -gt 0 ]]; do
       SQLITE_ARG=1
       shift
       ;;
+    --http)
+      HTTP_ARG=1
+      shift
+      ;;
     -h|--help)
-      sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,35p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -98,6 +106,8 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+[[ "$HTTP_ARG" -eq 1 && -n "$DOMAIN_ARG" ]] && die "--http and --domain are mutually exclusive."
 
 # --- 1. Pre-flight checks ---
 
@@ -256,26 +266,49 @@ if [[ -n "$DOMAIN_ARG" ]]; then
 elif [[ -n "$EXISTING_DOMAIN" ]]; then
   DOMAIN="$EXISTING_DOMAIN"
   log "Reusing DOMAIN=$DOMAIN from .env"
-elif [[ "$FRESH_INSTALL" -eq 1 ]]; then
-  # Interactive prompt only on a fresh install with no CLI flag.
+elif [[ "$FRESH_INSTALL" -eq 1 && "$HTTP_ARG" -eq 0 ]]; then
+  # Interactive prompt only on a fresh install when the caller did not explicitly
+  # opt out via --http. We try three sources for the prompt, in order:
+  #   1. stdin is a TTY (`bash setup.sh` run directly from a terminal)
+  #   2. /dev/tty is genuinely usable for read+write (interactive ssh, sudo from a TTY)
+  #   3. otherwise: skip the prompt and pick plain HTTP, warning the operator.
+  #
+  # `[[ -r /dev/tty ]]` is not enough: on non-interactive ssh sessions the file
+  # exists and is readable per stat() but actually opening it for read or write
+  # fails ("No such device or address"). We probe both directions in a subshell
+  # to be certain.
+  tty_usable() {
+    ( : >/dev/tty ) 2>/dev/null && ( : </dev/tty ) 2>/dev/null
+  }
+
+  INPUT_TTY=""
   if [[ -t 0 ]]; then
     INPUT_TTY=/dev/stdin
-  elif [[ -r /dev/tty ]]; then
+  elif tty_usable; then
     INPUT_TTY=/dev/tty
-  else
-    INPUT_TTY=""
   fi
 
   DOMAIN=""
   ACME_EMAIL=""
   if [[ -n "$INPUT_TTY" ]]; then
-    printf '%b' "${C_BOLD}Do you have a domain pointing to this server? (Enter to skip, or type domain): ${C_RESET}" > /dev/tty
+    if [[ "$INPUT_TTY" == /dev/tty ]]; then
+      printf '%b' "${C_BOLD}Do you have a domain pointing to this server? (Enter to skip, or type domain): ${C_RESET}" >/dev/tty
+    else
+      printf '%b' "${C_BOLD}Do you have a domain pointing to this server? (Enter to skip, or type domain): ${C_RESET}"
+    fi
     read -r DOMAIN < "$INPUT_TTY" || DOMAIN=""
     if [[ -n "$DOMAIN" ]]; then
-      printf '%b' "${C_BOLD}Email for Let's Encrypt notifications: ${C_RESET}" > /dev/tty
+      if [[ "$INPUT_TTY" == /dev/tty ]]; then
+        printf '%b' "${C_BOLD}Email for Let's Encrypt notifications: ${C_RESET}" >/dev/tty
+      else
+        printf '%b' "${C_BOLD}Email for Let's Encrypt notifications: ${C_RESET}"
+      fi
       read -r ACME_EMAIL < "$INPUT_TTY" || ACME_EMAIL=""
       [[ -n "$ACME_EMAIL" ]] || die "Email is required when a domain is provided."
     fi
+  else
+    warn "No interactive terminal available — defaulting to plain HTTP."
+    warn "Re-run with --domain DOMAIN --email EMAIL to enable HTTPS, or pass --http to suppress this warning."
   fi
 fi
 
