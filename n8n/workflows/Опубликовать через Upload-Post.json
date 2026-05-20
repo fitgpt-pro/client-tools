@@ -1,0 +1,569 @@
+{
+  "name": "Опубликовать через Upload-Post",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "408262e8-c283-4448-9d07-fa868742a464",
+              "leftValue": "={{ $('↪️ Данные из другого рабочего процесса').item.json.up_profile_youtube }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        800
+      ],
+      "id": "f21ec406-d043-446f-8061-02af47b3e869",
+      "name": "❓ Есть YouTube?"
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  return $('📺 YouTube').first().json;\n} catch (e) {\n  return { success: false };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        800
+      ],
+      "id": "0baa1dc5-4499-489f-b67a-28f7303176b0",
+      "name": "✅ Результат YouTube",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "408262e8-c283-4448-9d07-fa868742a464",
+              "leftValue": "={{ $('↪️ Данные из другого рабочего процесса').item.json.up_profile_instagram }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        224
+      ],
+      "id": "e4d21ecb-63f0-45c9-8f50-1d5f13338017",
+      "name": "❓ Есть Instagram?"
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  return $('📸 Instagram').first().json;\n} catch (e) {\n  return { success: false };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        224
+      ],
+      "id": "fd9cc7a2-b830-4d3c-ad5d-f828abff0d8f",
+      "name": "✅ Результат Instagram"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "408262e8-c283-4448-9d07-fa868742a464",
+              "leftValue": "={{ $('↪️ Данные из другого рабочего процесса').item.json.up_profile_tiktok }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        512
+      ],
+      "id": "85b37e6a-ebc0-495a-a5a0-0f1e779ec176",
+      "name": "❓ Есть TikTok?"
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  return $('🎵 TikTok').first().json;\n} catch (e) {\n  return { success: false };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        512
+      ],
+      "id": "c00db0e9-2b08-4420-b32a-24ffa18a2dbf",
+      "name": "✅ Результат TikTok"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 3,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        448,
+        496
+      ],
+      "id": "77dfb502-ed9e-435c-b6da-dfd418ce8c6f",
+      "name": "🔄 Объединить результаты"
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "media_url"
+            },
+            {
+              "name": "title"
+            },
+            {
+              "name": "description"
+            },
+            {
+              "name": "up_profile_instagram"
+            },
+            {
+              "name": "up_profile_tiktok"
+            },
+            {
+              "name": "up_profile_youtube"
+            }
+          ]
+        }
+      },
+      "id": "691f3dd4-7768-4bac-b751-685ff91e05aa",
+      "typeVersion": 1.1,
+      "name": "↪️ Данные из другого рабочего процесса",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        -480,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ad170613-9875-4851-8d7d-10ce5cc2d050",
+              "name": "instagram",
+              "value": "={{ $('✅ Результат Instagram').item.json }}",
+              "type": "object"
+            },
+            {
+              "id": "a3b00e45-919d-4b0d-b2bb-6d97a3106a36",
+              "name": "tiktok",
+              "value": "={{ $('✅ Результат TikTok').item.json }}",
+              "type": "object"
+            },
+            {
+              "id": "90492999-9b9f-46fb-ba95-b9992d49bbc1",
+              "name": "youtube",
+              "value": "={{ $('✅ Результат YouTube').item.json }}",
+              "type": "object"
+            },
+            {
+              "id": "eca51b7b-9477-4575-95de-3707d407a16b",
+              "name": "facebook",
+              "value": "={{ { success: false } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        512
+      ],
+      "id": "c623c5aa-12ba-44f6-a46a-e0b244a217ba",
+      "name": "✅ Результат"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.upload-post.com/api/upload",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{ $('↪️ Данные из другого рабочего процесса').item.json.description }}"
+            },
+            {
+              "name": "user",
+              "value": "={{ $('↪️ Данные из другого рабочего процесса').item.json.up_profile_tiktok }}"
+            },
+            {
+              "name": "platform[]",
+              "value": "tiktok"
+            },
+            {
+              "name": "video",
+              "value": "={{ $('↪️ Данные из другого рабочего процесса').item.json.media_url }}"
+            },
+            {
+              "name": "async_upload",
+              "value": "true"
+            },
+            {
+              "name": "is_aigc",
+              "value": "false"
+            },
+            {
+              "name": "brand_organic_toggle",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        0,
+        432
+      ],
+      "id": "8a5c4790-7492-4774-941a-335741053aad",
+      "name": "🎵 TikTok"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.upload-post.com/api/upload",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{ $('↪️ Данные из другого рабочего процесса').item.json.title.substring(0, 99) }}"
+            },
+            {
+              "name": "user",
+              "value": "={{ $('↪️ Данные из другого рабочего процесса').item.json.up_profile_youtube }}"
+            },
+            {
+              "name": "platform[]",
+              "value": "youtube"
+            },
+            {
+              "name": "video",
+              "value": "={{ $('↪️ Данные из другого рабочего процесса').item.json.media_url }}"
+            },
+            {
+              "name": "async_upload",
+              "value": "true"
+            },
+            {
+              "name": "description",
+              "value": "={{ $('↪️ Данные из другого рабочего процесса').item.json.description }}"
+            },
+            {
+              "name": "categoryId",
+              "value": "17"
+            },
+            {
+              "name": "containsSyntheticMedia",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        0,
+        720
+      ],
+      "id": "2d8fcc4e-8e6d-478b-90c9-dd9c74660b02",
+      "name": "📺 YouTube"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.upload-post.com/api/upload",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{ $('↪️ Данные из другого рабочего процесса').item.json.description }}"
+            },
+            {
+              "name": "user",
+              "value": "={{ $('↪️ Данные из другого рабочего процесса').item.json.up_profile_instagram }}"
+            },
+            {
+              "name": "platform[]",
+              "value": "instagram"
+            },
+            {
+              "name": "video",
+              "value": "={{ $('↪️ Данные из другого рабочего процесса').item.json.media_url }}"
+            },
+            {
+              "name": "async_upload",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        0,
+        144
+      ],
+      "id": "82493926-fba9-4bc1-988c-692d9cd5ad94",
+      "name": "📸 Instagram"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "❓ Есть YouTube?": {
+      "main": [
+        [
+          {
+            "node": "📺 YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "✅ Результат YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Результат YouTube": {
+      "main": [
+        [
+          {
+            "node": "🔄 Объединить результаты",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "❓ Есть Instagram?": {
+      "main": [
+        [
+          {
+            "node": "📸 Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "✅ Результат Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Результат Instagram": {
+      "main": [
+        [
+          {
+            "node": "🔄 Объединить результаты",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❓ Есть TikTok?": {
+      "main": [
+        [
+          {
+            "node": "🎵 TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "✅ Результат TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Результат TikTok": {
+      "main": [
+        [
+          {
+            "node": "🔄 Объединить результаты",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔄 Объединить результаты": {
+      "main": [
+        [
+          {
+            "node": "✅ Результат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "↪️ Данные из другого рабочего процесса": {
+      "main": [
+        [
+          {
+            "node": "❓ Есть Instagram?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "❓ Есть TikTok?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "❓ Есть YouTube?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎵 TikTok": {
+      "main": [
+        [
+          {
+            "node": "✅ Результат TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📺 YouTube": {
+      "main": [
+        [
+          {
+            "node": "✅ Результат YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📸 Instagram": {
+      "main": [
+        [
+          {
+            "node": "✅ Результат Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "tags": []
+}
