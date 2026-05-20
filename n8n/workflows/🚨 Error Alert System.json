@@ -1,0 +1,272 @@
+{
+  "name": "🚨 Error Alert System",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "When Workflow Fails",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        272,
+        -96
+      ],
+      "id": "74aeb040-2dcb-4118-9338-cf57d2ddae60"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4d0b19d7-80bb-4264-9425-d388a4991676",
+              "name": "text",
+              "value": "=🔴 <b>Workflow Error Alert</b>\n\n<b>Workflow:</b> {{$node[\"When Workflow Fails\"].json[\"workflow\"][\"name\"]}}\n<b>Error:</b> {{$node[\"When Workflow Fails\"].json[\"execution\"][\"error\"][\"message\"]}}\n<b>Last Node:</b> {{$node[\"When Workflow Fails\"].json[\"execution\"][\"lastNodeExecuted\"]}}\n<b>Execution ID:</b> {{$node[\"When Workflow Fails\"].json[\"execution\"][\"id\"]}}\n<b>Mode:</b> {{$node[\"When Workflow Fails\"].json[\"execution\"][\"mode\"]}}\n\n<a href=\"{{$node[\"When Workflow Fails\"].json[\"execution\"][\"url\"]}}\">🔗 View Execution Details</a>",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        -96
+      ],
+      "id": "a74de405-c3c8-4638-ae9b-68e52562f5ea",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "text"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        272,
+        208
+      ],
+      "id": "0faa1c3a-0cd6-46cf-b9fd-e68921caef9c",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Edit Fields1').item.json.n8n_base_url }}/api/v1/executions/{{ $execution.id }}?includeData=true",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        208
+      ],
+      "id": "get-exec-data-001",
+      "name": "Get Execution Data",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const execData = $input.item.json;\nconst parentExec = execData?.data?.parentExecution ?? {};\n\nreturn [{\n  json: {\n    text: $('When Executed by Another Workflow').item.json.text,\n    workflowId: parentExec.workflowId ?? '',\n    executionId: parentExec.executionId ?? ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        208
+      ],
+      "id": "extract-parent-001",
+      "name": "Extract Parent Info"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Edit Fields1').item.json.n8n_base_url }}/api/v1/workflows/{{ $json.workflowId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1152,
+        208
+      ],
+      "id": "get-workflow-001",
+      "name": "Get Calling Workflow",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b1c2d3e4-f5a6-7890-abcd-ef1234567890",
+              "name": "text",
+              "value": "={{ $(\"When Executed by Another Workflow\").item.json.text + ($json.name ? \"\\n\\n📢 <b>Workflow:</b> \" + $json.name : \"\") + ($(\"Extract Parent Info\").item.json.executionId ? \"\\n<a href=\\\"\" + $(\"Edit Fields1\").item.json.n8n_base_url + \"/workflow/\" + $json.id + \"/executions/\" + $(\"Extract Parent Info\").item.json.executionId + \"\\\">🔗 View Execution</a>\" : \"\") }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1376,
+        208
+      ],
+      "id": "c3d4e5f6-a7b8-9012-cdef-234567890abc",
+      "name": "Format Executed Message"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Edit Fields1').item.json.telegram_chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "name": "Send Error Alert to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        64
+      ],
+      "id": "8cf04bc4-354e-4051-8dab-76bb1a6c568e"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1625cde0-5905-4250-bb43-aa7776e52312",
+              "name": "n8n_base_url",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "da7d243b-12e2-48ae-9650-7ae7c6560826",
+              "name": "telegram_chat_id",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        208
+      ],
+      "id": "4fa04174-3ef1-43d8-8cc4-ceddc21434f8",
+      "name": "Edit Fields1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Workflow Fails": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Send Error Alert to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Execution Data": {
+      "main": [
+        [
+          {
+            "node": "Extract Parent Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Parent Info": {
+      "main": [
+        [
+          {
+            "node": "Get Calling Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Calling Workflow": {
+      "main": [
+        [
+          {
+            "node": "Format Executed Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Executed Message": {
+      "main": [
+        [
+          {
+            "node": "Send Error Alert to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Get Execution Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "tags": []
+}

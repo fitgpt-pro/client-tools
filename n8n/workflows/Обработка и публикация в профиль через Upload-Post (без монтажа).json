@@ -1,0 +1,1092 @@
+{
+  "name": "Обработка и публикация в профиль через Upload-Post (без монтажа)",
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "binaryPropertyName": "audio",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        2208,
+        128
+      ],
+      "id": "40f2cf12-6da3-46c3-ad29-1112a8bbd83f",
+      "name": "🎤 Транскрибация аудио",
+      "alwaysOutputData": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "returnAll": true,
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "value": "={{ $('➡️ Запустить из другого workflow').item.json.drive_folder_id }}",
+            "mode": "id"
+          }
+        },
+        "options": {
+          "fields": [
+            "id",
+            "name",
+            "thumbnailLink",
+            "mimeType"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        928,
+        224
+      ],
+      "id": "381479c2-d07e-4fc1-932d-300088e930cc",
+      "name": "📁 Найти видео в Drive",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "content": "## 📱 ПУБЛИКАЦИЯ\n\nОдновременная публикация в 4 платформы:\n- **Instagram** (с ИИ заголовком)\n- **TikTok** (с ИИ заголовком)\n- **YouTube** (с ИИ описанием и заголовком)\n- **Facebook** (с ИИ заголовком)\n\nКаждый профиль имеет свои ID аккаунтов для всех платформ.\nКонтент адаптируется под специфику каждой соцсети.",
+        "height": 752,
+        "width": 816,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        3392,
+        -128
+      ],
+      "id": "0658f3e1-fc37-409e-b4ed-4e852912b261",
+      "name": "📱 ПУБЛИКАЦИЯ",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 🤖 ИИ ОБРАБОТКА\n\n1. **Транскрибация** аудио через OpenAI Whisper\n2. **Генерация заголовка** персонализированного под профиль\n3. **Генерация описания** с хештегами\n4. **Мультиязычность** - русский и английский контент\n5. **Персонализация** - учет пола и стиля инфлюенсера\n\nИИ создает уникальный контент для каждого профиля на соответствующем языке.",
+        "height": 752,
+        "width": 1608,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1744,
+        -128
+      ],
+      "id": "4ac74f81-243f-437d-a1e0-76d7fbdd957e",
+      "name": "🤖 ИИ ОБРАБОТКА",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 📊 ЛОГИРОВАНИЕ И АРХИВИРОВАНИЕ\n\n**Логирование в Google Sheets:**\n- Дата и время обработки\n- Название видео и профиль\n- Сгенерированный заголовок и описание  \n- Статус публикации по всем платформам\n- Текст транскрибации\n\n**Управление файлами:**\n- Видео перемещается в папку архива\n- Возможность удаления при ошибках\n- Сохранение истории всех операций",
+        "height": 752,
+        "width": 632,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4256,
+        -128
+      ],
+      "id": "f2171ff7-6c53-4c9a-a0b7-560eea6ac91c",
+      "name": "📊 ЛОГИРОВАНИЕ",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 🔄 ЦИКЛИЧЕСКАЯ ОБРАБОТКА\n\n**Логика цикла:**\n1. Разделение массива профилей на отдельные элементы\n2. Обработка каждого профиля последовательно\n3. Поиск видео в персональной папке профиля\n4. Полная обработка при наличии видео\n5. Лог \"папка пустая\" при отсутствии\n\n**Управление паузами:**\n- Проверка \"есть ещё профили?\"\n- Пауза 2 минуты между профилями\n- Автоматический переход к следующему профилю",
+        "height": 752,
+        "width": 1040,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        448,
+        -128
+      ],
+      "typeVersion": 1,
+      "id": "1a430825-1d12-419a-8a2d-0f1d12e6ff0c",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "={\n  \"type\": \"json_schema\",\n  \"json_schema\": {\n    \"name\": \"video_content_response\",\n    \"schema\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"title\": {\n          \"type\": \"string\",\n          \"description\": \"Title for a social media video publication.{{ $('📱 Подготовить название видео').item.json.appTitle ? ' At the end ALWAYS include: ' + $('📱 Подготовить название видео').item.json.appTitle + '.' : '' }} Double-check that your response is up to 100 characters long\",\n          \"maxLength\": 100\n        },\n        \"description\": {\n          \"type\": \"string\",\n          \"description\": \"Description for a social media video publication.{{ $('📱 Подготовить название видео').item.json.appTitle ? ' Somewhere naturally mention ' + $('📱 Подготовить название видео').item.json.appTitle + '.' : '' }} Double-check that your response is up to 500 characters long\",\n          \"maxLength\": 500\n        }\n      },\n      \"required\": [\"title\", \"description\"],\n      \"additionalProperties\": false\n    },\n    \"strict\": true\n  }\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        3168,
+        400
+      ],
+      "id": "e477b186-a32a-4ffd-a043-3f65ad9d3e18",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.1",
+          "mode": "list",
+          "cachedResultName": "gpt-5.1"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        3008,
+        400
+      ],
+      "id": "227c9f0d-95d8-4e28-88e9-7ce4aceb9550",
+      "name": "OpenAI Chat Model"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d26776a6-6465-447d-b168-be6dab089073",
+              "name": "text",
+              "value": "-",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2368,
+        224
+      ],
+      "id": "e6e00bf0-eb6e-4a44-be6e-9a931fd473e7",
+      "name": "⚠️ Заглушка при ошибке транскрибации"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Create an attractive title and a detailed description for this video based on the transcription: `{{ $('📱 Подготовить название видео').item.json.text }}`\n\nFOR TITLE:\n- Try to create it based on the first sentence of the video transcription.\n- Create personal sincere enthusiastic title with emojis.\n- Your title should ALWAYS be up to 100 characters long.\n{{ $('📱 Подготовить название видео').item.json.appTitle ? '- THIS IS SUPER-IMPORTANT!!! At the end ALWAYS include: \"' + $('📱 Подготовить название видео').item.json.appTitle + '\"' : '' }}\n\nFOR DESCRIPTION:\n- Write sincere involving descriptions.\n- Use hashtags naturally.\n- Your description should ALWAYS be up to 500 characters long.\n{{ $('📱 Подготовить название видео').item.json.appTitle ? '- Somewhere in between of the text naturally mention \"' + $('📱 Подготовить название видео').item.json.appTitle + '\"' : '' }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You generate titles and descriptions for social media video publications.\nYour gender: {{ $('➡️ Запустить из другого workflow').item.json.gender }}.\nWrite the answer using the following language: {{ $('➡️ Запустить из другого workflow').item.json.language }}.\n\n{{ $('➡️ Запустить из другого workflow').item.json.description_system_prompt }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        3024,
+        224
+      ],
+      "id": "6c39e847-5ffb-4508-ba8e-be878da24d86",
+      "name": "🤖 Генерация текста для видео",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Задать переменные').item.json.video_editor_base_url }}/v1/extract-audio",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "format",
+              "value": "mp3"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "video",
+              "inputDataFieldName": "video"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "audio"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2016,
+        128
+      ],
+      "id": "ece229f1-8e03-4079-b979-133de3d911cf",
+      "name": "🎵 Извлечение аудио",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "const videos = $input.all();\n\nif (!videos || videos.length === 0) {\n  return [];\n}\n\nconst randomIndex = Math.floor(Math.random() * videos.length);\n\nreturn [videos[randomIndex]];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        224
+      ],
+      "id": "5e736a09-0c23-44ba-bd07-71d6db7f2437",
+      "name": "🎲 Случайный выбор видео"
+    },
+    {
+      "parameters": {
+        "jsCode": "const appTitle = $('➡️ Запустить из другого workflow').first().json.app_title || '';\n\nconst thumbnailLink = $('🎲 Случайный выбор видео').first().json.thumbnailLink;\nlet videoPreviewLink = '';\nif (thumbnailLink) {\n  const paramIndex = thumbnailLink.lastIndexOf('=');\n  if (paramIndex !== -1) {\n    videoPreviewLink = thumbnailLink.substring(0, paramIndex);\n  }\n}\n\nreturn [{\n  json: {\n    text: $input.first().json.text,\n    appTitle: appTitle,\n    videoPreviewLink: videoPreviewLink\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2544,
+        128
+      ],
+      "id": "cb11883c-84f3-4602-b52e-36c003ca7f21",
+      "name": "📱 Подготовить название видео"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "R6LusHb9zFZk2X10",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/R6LusHb9zFZk2X10",
+          "cachedResultName": "Опубликовать через Upload-Post"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "media_url": "=https://drive.google.com/uc?export=download&id={{ $('🌐 Загрузить на временный хостинг').item.json.id }}",
+            "title": "={{ $('➕ Подготовить тексты').item.json.title }}",
+            "description": "={{ $('➕ Подготовить тексты').item.json.description }}",
+            "up_profile_instagram": "={{ $('➡️ Запустить из другого workflow').item.json.up_profile_instagram }}",
+            "up_profile_tiktok": "={{ $('➡️ Запустить из другого workflow').item.json.up_profile_tiktok }}",
+            "up_profile_youtube": "={{ $('➡️ Запустить из другого workflow').item.json.up_profile_youtube }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "media_url",
+              "displayName": "media_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "up_profile_instagram",
+              "displayName": "up_profile_instagram",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "up_profile_tiktok",
+              "displayName": "up_profile_tiktok",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "up_profile_youtube",
+              "displayName": "up_profile_youtube",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3856,
+        224
+      ],
+      "id": "ebba2990-0200-42da-9ce9-1582f1145b23",
+      "name": "➡️ Опубликовать видео"
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "video",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2800,
+        448
+      ],
+      "id": "75be859c-f46d-49e6-8609-8e042b0fa82b",
+      "name": "🌐 Загрузить на временный хостинг"
+    },
+    {
+      "parameters": {
+        "operation": "deleteFile",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('🌐 Загрузить на временный хостинг').item.json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        4064,
+        224
+      ],
+      "id": "4241598b-3018-4db3-92a8-ba357c7760ba",
+      "name": "🗑️ Удалить с временного хостинга"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3472,
+        224
+      ],
+      "id": "881e8bfc-3d00-4e0e-b6ed-9ff3cf685ce4",
+      "name": "Дождаться обработки и выгрузки видео"
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "social_name"
+            },
+            {
+              "name": "language"
+            },
+            {
+              "name": "gender"
+            },
+            {
+              "name": "drive_folder_id"
+            },
+            {
+              "name": "published_folder_id"
+            },
+            {
+              "name": "up_profile_instagram"
+            },
+            {
+              "name": "up_profile_tiktok"
+            },
+            {
+              "name": "up_profile_youtube"
+            },
+            {
+              "name": "promocode"
+            },
+            {
+              "name": "video_outro_url"
+            },
+            {
+              "name": "app_title"
+            },
+            {
+              "name": "description_system_prompt"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        512,
+        224
+      ],
+      "id": "cba8076e-adf8-4a8e-ac64-4dcf5052027f",
+      "name": "➡️ Запустить из другого workflow"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "ComZzp3QffKd3t3t",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/ComZzp3QffKd3t3t",
+          "cachedResultName": "Отредактировать видео"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "video_url": "=https://drive.google.com/uc?export=download&id={{ $('🎲 Случайный выбор видео').item.json.id }}",
+            "outro_video_url": "={{ $('➡️ Запустить из другого workflow').item.json.video_outro_url }}",
+            "add_uniquification": true
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "video_url",
+              "displayName": "video_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "image_to_video_duration_ms",
+              "displayName": "image_to_video_duration_ms",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": true
+            },
+            {
+              "id": "track_url",
+              "displayName": "track_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": true
+            },
+            {
+              "id": "track_volume",
+              "displayName": "track_volume",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": true
+            },
+            {
+              "id": "subtitle_text",
+              "displayName": "subtitle_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": true
+            },
+            {
+              "id": "subtitle_font_size",
+              "displayName": "subtitle_font_size",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": true
+            },
+            {
+              "id": "subtitle_position",
+              "displayName": "subtitle_position",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": true
+            },
+            {
+              "id": "outro_video_url",
+              "displayName": "outro_video_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "add_uniquification",
+              "displayName": "add_uniquification",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1888,
+        448
+      ],
+      "id": "97047b65-9bcd-4b0f-95be-af3353dd0bc8",
+      "name": "➡️ Отредактировать видео"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('❓ Проверка: есть видео?').item.json.id }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "video"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1808,
+        128
+      ],
+      "id": "b0308761-501c-46a5-b7c1-d0edb1f81e98",
+      "name": "📥 Скачать видео"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Оба LLM-узла (с превью и без) уже объединены через Merge-ноду.\n// Используем $input напрямую — не обращаемся к ненужным нодам.\nconst llmOutput = $input.first().json.output;\n\nconst title = llmOutput.title;\nconst appTitle = $('📱 Подготовить название видео').first().json.appTitle;\nconst description = llmOutput.description;\n\nlet extendedTitle = title;\nif (appTitle && !title.includes(appTitle)) {\n  extendedTitle = `${title} | ${appTitle}`;\n}\n\nlet extendedDescription = description;\n\nconst promocode = $('➡️ Запустить из другого workflow').first().json.promocode;\nif (promocode) {\n  const language = $('➡️ Запустить из другого workflow').first().json.language;\n  switch (language.toLowerCase()) {\n    case 'русский':\n      extendedTitle += `. Промокод: ${promocode}`;\n      break;\n    default:\n      extendedTitle += `. Promocode: ${promocode}`;\n      break;\n  }\n}\n\nconst filename = `${$now.toFormat('yyyy-MM-dd-hh-mm-ss')}.mp4`;\n\nreturn [{\n  json: {\n    title: extendedTitle,\n    description: extendedDescription,\n    filename: filename,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3648,
+        224
+      ],
+      "id": "325ff853-62e3-40cc-9476-ccbea50bea09",
+      "name": "➕ Подготовить тексты"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "preview-check",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.videoPreviewLink }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-preview-check-001",
+      "name": "❓ Есть превью?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2720,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Create an attractive title and a detailed description for this video based on the transcription: `{{ $('📱 Подготовить название видео').item.json.text }}`\n\nFOR TITLE:\n- Try to create it based on the first sentence of the video transcription.\n- Create personal sincere enthusiastic title with emojis.\n- Your title should ALWAYS be up to 100 characters long.\n{{ $('📱 Подготовить название видео').item.json.appTitle ? '- THIS IS SUPER-IMPORTANT!!! At the end ALWAYS include: \"' + $('📱 Подготовить название видео').item.json.appTitle + '\"' : '' }}\n\nFOR DESCRIPTION:\n- Write sincere involving descriptions.\n- Use hashtags naturally.\n- Your description should ALWAYS be up to 500 characters long.\n{{ $('📱 Подготовить название видео').item.json.appTitle ? '- Somewhere in between of the text naturally mention \"' + $('📱 Подготовить название видео').item.json.appTitle + '\"' : '' }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You generate titles and descriptions for social media video publications.\nYour gender: {{ $('➡️ Запустить из другого workflow').item.json.gender }}.\nWrite the answer using the following language: {{ $('➡️ Запустить из другого workflow').item.json.language }}.\n\n{{ $('➡️ Запустить из другого workflow').item.json.description_system_prompt }}"
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "messageType": "imageUrl",
+              "imageUrl": "={{ $('📱 Подготовить название видео').item.json.videoPreviewLink }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "id": "llm-with-preview-001",
+      "name": "🤖 Генерация текста (с превью)",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        3024,
+        -112
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.1",
+          "mode": "list",
+          "cachedResultName": "gpt-5.1"
+        },
+        "options": {}
+      },
+      "id": "openai-with-preview-001",
+      "name": "OpenAI Chat Model (с превью)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        3008,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "={\n  \"type\": \"json_schema\",\n  \"json_schema\": {\n    \"name\": \"video_content_response\",\n    \"schema\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"title\": {\n          \"type\": \"string\",\n          \"description\": \"Title for a social media video publication.{{ $('📱 Подготовить название видео').item.json.appTitle ? ' At the end ALWAYS include: ' + $('📱 Подготовить название видео').item.json.appTitle + '.' : '' }} Double-check that your response is up to 100 characters long\",\n          \"maxLength\": 100\n        },\n        \"description\": {\n          \"type\": \"string\",\n          \"description\": \"Description for a social media video publication.{{ $('📱 Подготовить название видео').item.json.appTitle ? ' Somewhere naturally mention ' + $('📱 Подготовить название видео').item.json.appTitle + '.' : '' }} Double-check that your response is up to 500 characters long\",\n          \"maxLength\": 500\n        }\n      },\n      \"required\": [\"title\", \"description\"],\n      \"additionalProperties\": false\n    },\n    \"strict\": true\n  }\n}"
+      },
+      "id": "parser-with-preview-001",
+      "name": "Structured Output Parser (с превью)",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        3168,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "move",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('🎲 Случайный выбор видео').item.json.id }}",
+          "mode": "id"
+        },
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $('➡️ Запустить из другого workflow').item.json.published_folder_id }}",
+          "mode": "id"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        4528,
+        224
+      ],
+      "id": "982a48c8-a5b2-4d1e-a4b0-e8fac6c8f25e",
+      "name": "📁 Переместить в архив"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "10aea20d-f8cd-4a0a-81cd-0e88f4d47fa0",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1328,
+        224
+      ],
+      "id": "3283fbea-b658-4708-9c50-a9c4d86f79d5",
+      "name": "❓ Проверка: есть видео?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b4208cad-6e10-4a7d-9fb3-9636e2553365",
+              "name": "video_editor_base_url",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        720,
+        224
+      ],
+      "id": "53fc7976-77f4-4a0f-935f-632629830674",
+      "name": "Задать переменные"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "🎤 Транскрибация аудио": {
+      "main": [
+        [
+          {
+            "node": "📱 Подготовить название видео",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⚠️ Заглушка при ошибке транскрибации",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📁 Найти видео в Drive": {
+      "main": [
+        [
+          {
+            "node": "🎲 Случайный выбор видео",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "🤖 Генерация текста для видео",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "🤖 Генерация текста для видео",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚠️ Заглушка при ошибке транскрибации": {
+      "main": [
+        [
+          {
+            "node": "📱 Подготовить название видео",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 Генерация текста для видео": {
+      "main": [
+        [
+          {
+            "node": "Дождаться обработки и выгрузки видео",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎵 Извлечение аудио": {
+      "main": [
+        [
+          {
+            "node": "🎤 Транскрибация аудио",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎲 Случайный выбор видео": {
+      "main": [
+        [
+          {
+            "node": "❓ Проверка: есть видео?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "➡️ Опубликовать видео": {
+      "main": [
+        [
+          {
+            "node": "🗑️ Удалить с временного хостинга",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 Загрузить на временный хостинг": {
+      "main": [
+        [
+          {
+            "node": "Дождаться обработки и выгрузки видео",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🗑️ Удалить с временного хостинга": {
+      "main": [
+        [
+          {
+            "node": "📁 Переместить в архив",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Дождаться обработки и выгрузки видео": {
+      "main": [
+        [
+          {
+            "node": "➕ Подготовить тексты",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "➡️ Запустить из другого workflow": {
+      "main": [
+        [
+          {
+            "node": "Задать переменные",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "➡️ Отредактировать видео": {
+      "main": [
+        [
+          {
+            "node": "🌐 Загрузить на временный хостинг",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 Скачать видео": {
+      "main": [
+        [
+          {
+            "node": "🎵 Извлечение аудио",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "➕ Подготовить тексты": {
+      "main": [
+        [
+          {
+            "node": "➡️ Опубликовать видео",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📱 Подготовить название видео": {
+      "main": [
+        [
+          {
+            "node": "❓ Есть превью?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❓ Есть превью?": {
+      "main": [
+        [
+          {
+            "node": "🤖 Генерация текста (с превью)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🤖 Генерация текста для видео",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 Генерация текста (с превью)": {
+      "main": [
+        [
+          {
+            "node": "Дождаться обработки и выгрузки видео",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model (с превью)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "🤖 Генерация текста (с превью)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser (с превью)": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "🤖 Генерация текста (с превью)",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❓ Проверка: есть видео?": {
+      "main": [
+        [
+          {
+            "node": "📥 Скачать видео",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "➡️ Отредактировать видео",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Задать переменные": {
+      "main": [
+        [
+          {
+            "node": "📁 Найти видео в Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timezone": "Europe/Moscow",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "tags": []
+}

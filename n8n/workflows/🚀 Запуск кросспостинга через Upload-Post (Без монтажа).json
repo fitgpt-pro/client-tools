@@ -1,0 +1,402 @@
+{
+  "name": "🚀 Запуск кросспостинга через Upload-Post (Без монтажа)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1168,
+        784
+      ],
+      "id": "c5eb949f-32ca-4109-9461-37e2378da23f",
+      "name": "🕐 Триггер по расписанию"
+    },
+    {
+      "parameters": {
+        "content": "## 🔄 АВТОМАТИЗАЦИЯ\n\nТриггер запускается **каждый час**.\n\nДля каждого профиля проверяется столбец «Часы публикации» в Google Sheets.\nЕсли текущий час (МСК) совпадает с одним из указанных — профиль обрабатывается.\n\nФормат столбца: `3, 9, 13, 17, 21` (через запятую).\nПустая ячейка = профиль пропускается.",
+        "height": 560,
+        "width": 560
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1216,
+        432
+      ],
+      "id": "0fd19bab-8859-492f-89e1-bd65805a6872",
+      "name": "🔄 АВТОМАТИЗАЦИЯ",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 🔄 ЦИКЛИЧЕСКАЯ ОБРАБОТКА\n\n**Логика цикла:**\n1. Разделение массива профилей на отдельные элементы\n2. Обработка каждого профиля последовательно\n3. Поиск видео в персональной папке профиля\n4. Полная обработка при наличии видео\n5. Лог \"папка пустая\" при отсутствии\n\n**Управление паузами:**\n- Проверка \"есть ещё профили?\"\n- Пауза 2 минуты между профилями\n- Автоматический переход к следующему профилю",
+        "height": 560,
+        "width": 672,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -608,
+        432
+      ],
+      "typeVersion": 1,
+      "id": "8787a7c4-c52a-4d5e-a9fc-8b18e89dd412",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -544,
+        784
+      ],
+      "id": "6b06493c-2d98-4878-be69-85227fe6f95b",
+      "name": "🔄 Цикл по профилям"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        -960,
+        784
+      ],
+      "id": "82512dfa-ef54-436e-8e74-1e04ee431654",
+      "name": "📖 Получение данных профилей"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "1eOGfpx0bdXmo29y",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/1eOGfpx0bdXmo29y",
+          "cachedResultName": "Обработка и публикация в профиль через Upload-Post (без монтажа)"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "social_name": "={{ $('🔄 Цикл по профилям').item.json['Профиль'] }}",
+            "language": "={{ $('🔄 Цикл по профилям').item.json['Язык'] }}",
+            "gender": "={{ $('🔄 Цикл по профилям').item.json['Пол'] }}",
+            "drive_folder_id": "={{ $('🔄 Цикл по профилям').item.json['ID папки очередь Google Drive'] }}",
+            "published_folder_id": "={{ $('🔄 Цикл по профилям').item.json['ID папки архив Google Drive'] }}",
+            "up_profile_instagram": "={{ $('🔄 Цикл по профилям').item.json.Instagram }}",
+            "up_profile_tiktok": "={{ $('🔄 Цикл по профилям').item.json.TikTok }}",
+            "up_profile_youtube": "={{ $('🔄 Цикл по профилям').item.json.YouTube }}",
+            "promocode": "={{ $('🔄 Цикл по профилям').item.json['Промокод'] }}",
+            "video_outro_url": "={{ $('🔄 Цикл по профилям').item.json['URL видео-концовки'] }}",
+            "app_title": "={{ $('🔄 Цикл по профилям').item.json['Название приложения'] }}",
+            "description_system_prompt": "={{ $('🔄 Цикл по профилям').item.json['Промпт описания'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "social_name",
+              "displayName": "social_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "language",
+              "displayName": "language",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "gender",
+              "displayName": "gender",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "drive_folder_id",
+              "displayName": "drive_folder_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "published_folder_id",
+              "displayName": "published_folder_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "up_profile_instagram",
+              "displayName": "up_profile_instagram",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "up_profile_tiktok",
+              "displayName": "up_profile_tiktok",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "up_profile_youtube",
+              "displayName": "up_profile_youtube",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "promocode",
+              "displayName": "promocode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "video_outro_url",
+              "displayName": "video_outro_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "app_title",
+              "displayName": "app_title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "description_system_prompt",
+              "displayName": "description_system_prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -336,
+        784
+      ],
+      "id": "1ce96ab1-96c8-411c-bb06-fe7b07d538e3",
+      "name": "Обработать и опубликовать видео профиля",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "62SJFgBo4SFgGZeY",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/62SJFgBo4SFgGZeY",
+          "cachedResultName": "🚨 Error Alert System"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "text": "=Не удалось опубликовать видео в профиль: {{ $('🔄 Цикл по профилям').item.json['Профиль'] }}\n{{ $('Обработать и опубликовать видео профиля').item.json.error }}\n\nhttps://drive.google.com/drive/u/1/folders/{{ $('🔄 Цикл по профилям').item.json['ID папки очередь Google Drive'] }}"
+          },
+          "matchingColumns": [
+            "text"
+          ],
+          "schema": [
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -128,
+        784
+      ],
+      "id": "0cea6885-edb3-4083-9f9b-1f956da7adf5",
+      "name": "Отправить ошибку в Telegram",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const currentHour = DateTime.now().setZone('Europe/Moscow').hour;\n\nconst filtered = [];\n\nfor (const item of $input.all()) {\n  const {\n    'ID папки очередь Google Drive': drive_folder_id,\n    'ID папки архив Google Drive': published_folder_id,\n    'Instagram': up_profile_instagram,\n    'TikTok': up_profile_tiktok,\n    'YouTube': up_profile_youtube,\n    'Часы публикации': scheduleRaw,\n  } = item.json;\n\n  // Проверка обязательных полей\n  if (!drive_folder_id || !published_folder_id || !(up_profile_instagram || up_profile_tiktok || up_profile_youtube)) {\n    continue;\n  }\n\n  // Проверка расписания\n  if (!scheduleRaw || typeof scheduleRaw !== 'string') {\n    continue;\n  }\n\n  const hours = scheduleRaw\n    .split(',')\n    .map(h => parseInt(h.trim(), 10))\n    .filter(h => !isNaN(h) && h >= 0 && h <= 23);\n\n  if (hours.length === 0) {\n    continue;\n  }\n\n  if (hours.includes(currentHour)) {\n    filtered.push(item);\n  }\n}\n\nreturn filtered;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -784,
+        784
+      ],
+      "id": "30b3949c-7f77-45e8-b0b4-fd536f9b6acf",
+      "name": "Отфильтровать профили"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "🕐 Триггер по расписанию": {
+      "main": [
+        [
+          {
+            "node": "📖 Получение данных профилей",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 Цикл по профилям": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Обработать и опубликовать видео профиля",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📖 Получение данных профилей": {
+      "main": [
+        [
+          {
+            "node": "Отфильтровать профили",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Обработать и опубликовать видео профиля": {
+      "main": [
+        [
+          {
+            "node": "🔄 Цикл по профилям",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Отправить ошибку в Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Отправить ошибку в Telegram": {
+      "main": [
+        [
+          {
+            "node": "🔄 Цикл по профилям",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Отфильтровать профили": {
+      "main": [
+        [
+          {
+            "node": "🔄 Цикл по профилям",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timezone": "Europe/Moscow",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "62SJFgBo4SFgGZeY",
+    "saveExecutionProgress": true,
+    "availableInMCP": false
+  }
+}
